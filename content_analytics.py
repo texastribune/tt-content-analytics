@@ -188,16 +188,24 @@ class GoogleDriveAPI(object):
         ).execute()
         return result['webViewLink']
 
-    def share_with_texastribune(self, file_id):
+    def share_folder_with_user(self, email):
+        body = {
+            'role': 'writer',
+            'type': 'user',
+            'emailAddress': email
+        }
         self.service.permissions().create(
-            fileId=file_id,
-            body={
-                'role': 'writer',
-                'type': 'domain',
-                'domain': 'texastribune.org',
-                'allowFileDiscovery': True
-            }
-        ).execute()
+            fileId=self.PARENT_FOLDER, body=body).execute()
+
+    def share_with_texastribune(self, file_id):
+        body = {
+            'role': 'writer',
+            'type': 'domain',
+            'domain': 'texastribune.org',
+            'allowFileDiscovery': True
+        }
+        self.service.permissions().create(
+            fileId=file_id, body=body).execute()
 
     def upload_csv(self, file_obj, doc_title=None):
         media = apiclient.http.MediaIoBaseUpload(
