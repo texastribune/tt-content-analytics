@@ -8,6 +8,13 @@ import StringIO
 
 
 class TexasTribuneAPI(object):
+    """
+    Call the Texas Tribune API.
+
+    :param api_url: The base URL for the API.
+    :param start: ISO8601 string representing the start_date in the API call.
+    :param end: ISO8601 string representing the end_date in the API call.
+    """
     api_url = 'https://www.texastribune.org/api/'
 
     def __init__(self, api_url=None, start=None, end=None):
@@ -17,6 +24,12 @@ class TexasTribuneAPI(object):
         self.end = end
 
     def call(self, endpoint, params):
+        """
+        Low level call to the TT API.
+
+        :param endpoint: Path to the given API endpoint (without base url).
+        :param params: Query params to attach to the request.
+        """
         params['start_date'] = params.get('start_date') or self.start + 'T00:00'
         params['end_date'] = params.get('end_date') or self.end + 'T00:00'
         params['offset'] = params.get('offset') or 0
@@ -32,15 +45,27 @@ class TexasTribuneAPI(object):
         return results
 
     def story(self):
+        """
+        Call /api/stories/ and just get the body back.
+        """
         params = {'fields': 'body'}
         return self.call('stories/', params)
 
     def content(self):
+        """
+        Call /api/content/ for major content types, and get every field back.
+        """
         params = {'content_type': 'story,video,audio,pointer', 'fields': 'all'}
         return self.call('content/', params)
 
 
 class ContentAnalytics(object):
+    """
+    Runs analytics on Texas Tribune content, and then spits out a CSV object.
+
+    :param days: How many days back to look for content.
+    :param end: Which day should be the last day to look (defaults to today).
+    """
     num_days = 7
     _results = None
 
@@ -54,21 +79,31 @@ class ContentAnalytics(object):
 
     @property
     def results(self):
+        """
+        Get the results from the API if we don't have them already.
+        """
         if self._results is None:
             self._results = self._api.content()
         return self._results
 
     @property
     def filename(self):
+        """
+        Make a filename from the start/end dates.
+        """
         if not getattr(self, '_filename', None):
             self._filename = 'content-analytics_%s_%s.csv' % (
                 self._api.start, self._api.end)
         return self._filename
 
     def get_data(self):
+        """Get high-level data about the results for an aggregate view."""
         return self.data
 
     def flatten(self, nested_list, key):
+        """
+        Flatten a nested list/dict in a semi-smart way using a few criteria.
+        """
         keyed_list = [i[key] for i in nested_list]
         try:
             keyed_list = [item.get('slug') or item.get('url') or item
@@ -84,6 +119,11 @@ class ContentAnalytics(object):
                 for sublist in keyed_list for item in sublist]
 
     def _analyze(self, attr):
+        """
+        Base level analysis: flatten the results, count them, and return data.
+
+        :param attr: The content attribute to analyze.
+        """
         if not self.results:
             print 'Could not find results!'
             return
@@ -137,6 +177,7 @@ class ContentAnalytics(object):
         return results
 
     def analyze_word_count(self):
+        # call the story API instead of content API for this one
         stories = [story['body'] for story in self._api.story()]
         total_word_count = sum([len(body.split(' ')) for body in stories])
         word_count_avg = total_word_count / len(self.results)
@@ -144,6 +185,10 @@ class ContentAnalytics(object):
         return [('AVERAGE', '%.2f' % word_count_avg),]
 
     def get_rows(self):
+        """
+        Get all the analyze_ methods, run them all, and put the results into a
+        master list of spreadsheet rows.
+        """
         rows = []
         methods = [m for m in dir(self) if m.startswith('analyze_')]
         for method_name in methods:
@@ -156,6 +201,12 @@ class ContentAnalytics(object):
         return rows
 
     def to_csv_file_obj(self, rows):
+        """
+        Take the rows (e.g. from `get_rows`) and write them to a CSV file-like
+        object.
+
+        :param rows: List of rows to write to the CSV.
+        """
         output = StringIO.StringIO()
         writer = csv.writer(output)
         writer.writerows(rows)
