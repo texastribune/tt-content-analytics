@@ -6,4 +6,4 @@ RUN apt-get install -yq python-pip
 RUN pip install --quiet google-api-python-client==1.5.0 slacker==0.9.15
 
 COPY . /app/
-ENTRYPOINT ["python", "/app/content_analytics.py"]
+ENTRYPOINT ["python", "/app/run.py"]

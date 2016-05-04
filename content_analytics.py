@@ -1,32 +1,68 @@
-import os
-from collections import Counter
 import datetime
 import csv
+import json
+from collections import Counter
+from urllib import urlopen
+from urllib2 import urlencode
 import StringIO
-import httplib2
 
-import requests
-import slacker
-import apiclient
-from oauth2client.service_account import ServiceAccountCredentials
+
+class TexasTribuneAPI(object):
+    api_url = 'https://www.texastribune.org/api/'
+
+    def __init__(self, api_url=None, start=None, end=None):
+        if api_url:
+            self.api_url = api_url
+        self.start = start
+        self.end = end
+
+    def call(self, endpoint, params):
+        params['start_date'] = params.get('start_date') or self.start + 'T00:00'
+        params['end_date'] = params.get('end_date') or self.end + 'T00:00'
+        params['offset'] = params.get('offset') or 0
+        params['limit'] = params.get('limit') or 100
+        results = []
+        while True:
+            r = urlopen(self.api_url + endpoint + '?' + urlencode(params))
+            response = json.loads(r.read())
+            results += response['results']
+            if not response['next']:
+                break
+            params['offset'] += params['limit']
+        return results
+
+    def story(self):
+        params = {'fields': 'body'}
+        return self.call('stories/', params)
+
+    def content(self):
+        params = {'content_type': 'story,video,audio,pointer', 'fields': 'all'}
+        return self.call('content/', params)
 
 
 class ContentAnalytics(object):
     num_days = 7
     _results = None
-    api_url = 'https://www.texastribune.org/api/'
 
     def __init__(self, days=None, end=None):
         today = datetime.datetime.today().date()
-        self.start = (today - datetime.timedelta(days=days or self.num_days)
-                     ).strftime('%Y-%m-%d')
-        self.end = end or today.strftime('%Y-%m-%d')
+        start = (today - datetime.timedelta(days=days or self.num_days)
+                ).strftime('%Y-%m-%d')
+        end = end or today.strftime('%Y-%m-%d')
+        self._api = TexasTribuneAPI(start=start, end=end)
         self.data = {}
+
+    @property
+    def results(self):
+        if self._results is None:
+            self._results = self._api.content()
+        return self._results
 
     @property
     def filename(self):
         if not getattr(self, '_filename', None):
-            self._filename = 'content-analytics_%s_%s.csv' % (self.start, self.end)
+            self._filename = 'content-analytics_%s_%s.csv' % (
+                self._api.start, self._api.end)
         return self._filename
 
     def get_data(self):
@@ -46,35 +82,6 @@ class ContentAnalytics(object):
         # slug is preferable, but use url as a backup
         return [item.get('slug') or item.get('url')
                 for sublist in keyed_list for item in sublist]
-
-    @property
-    def results(self):
-        if self._results is None:
-            self._results = self.call_content_api()
-        return self._results
-
-    def call_api(self, endpoint, params):
-        params['start_date'] = params.get('start_date') or self.start + 'T00:00'
-        params['end_date'] = params.get('end_date') or self.end + 'T00:00'
-        params['offset'] = params.get('offset') or 0
-        params['limit'] = params.get('limit') or 100
-        results = []
-        while True:
-            r = requests.get(self.api_url + endpoint, params=params)
-            response = r.json()
-            results += response['results']
-            if not response['next']:
-                break
-            params['offset'] += params['limit']
-        return results
-
-    def call_story_api(self):
-        params = {'fields': 'body'}
-        return self.call_api('stories/', params)
-
-    def call_content_api(self):
-        params = {'content_type': 'story,video,audio,pointer', 'fields': 'all'}
-        return self.call_api('content/', params)
 
     def _analyze(self, attr):
         if not self.results:
@@ -130,7 +137,7 @@ class ContentAnalytics(object):
         return results
 
     def analyze_word_count(self):
-        stories = [story['body'] for story in self.call_story_api()]
+        stories = [story['body'] for story in self._api.story()]
         total_word_count = sum([len(body.split(' ')) for body in stories])
         word_count_avg = total_word_count / len(self.results)
         self.data['Average word count'] = word_count_avg
@@ -153,121 +160,3 @@ class ContentAnalytics(object):
         writer = csv.writer(output)
         writer.writerows(rows)
         return output
-
-
-class GoogleDriveAPI(object):
-    SCOPES = 'https://www.googleapis.com/auth/drive.file'
-    CREDENTIAL_FILE = 'tt-googledrive-credentials.json'
-    PARENT_FOLDER = '0Byoew92ZDFFtazB2TlA1a3g4OGc'
-    _service = None
-
-    @property
-    def service(self):
-        """
-        Gets valid Drive service account credentials from a JSON cred file.
-
-        Returns:
-            Service, the Drive service object
-        """
-        if self._service is None:
-            if os.path.exists(self.CREDENTIAL_FILE):
-                cred_path = self.CREDENTIAL_FILE
-            else:
-                cred_path = '/etc/ssl/certs/' + self.CREDENTIAL_FILE
-
-            credentials = ServiceAccountCredentials.from_json_keyfile_name(
-                cred_path, scopes=self.SCOPES)
-
-            http_auth = credentials.authorize(httplib2.Http())
-            self._service = apiclient.discovery.build('drive', 'v3', http=http_auth)
-        return self._service
-
-    def get_file_url(self, file_id):
-        result = self.service.files().get(
-            fileId=file_id, fields='webViewLink'
-        ).execute()
-        return result['webViewLink']
-
-    def share_folder_with_user(self, email):
-        body = {
-            'role': 'writer',
-            'type': 'user',
-            'emailAddress': email
-        }
-        self.service.permissions().create(
-            fileId=self.PARENT_FOLDER, body=body).execute()
-
-    def share_with_texastribune(self, file_id):
-        body = {
-            'role': 'writer',
-            'type': 'domain',
-            'domain': 'texastribune.org',
-            'allowFileDiscovery': True
-        }
-        self.service.permissions().create(
-            fileId=file_id, body=body).execute()
-
-    def upload_csv(self, file_obj, doc_title=None):
-        media = apiclient.http.MediaIoBaseUpload(
-            file_obj, mimetype='text/csv', resumable=True)
-        result = self.service.files().create(
-            fields='id',
-            media_body=media,
-            body={
-                'name': doc_title or 'untitled',
-                'parents': [self.PARENT_FOLDER],
-                'mimeType': 'application/vnd.google-apps.spreadsheet'
-            }
-        ).execute()
-        file_obj.close()
-        if 'id' in result:
-            # Make it viewable by the Texas Tribune
-            self.share_with_texastribune(result['id'])
-            # Get the full URL of the file and return it
-            return self.get_file_url(result['id'])
-        raise
-
-
-class SlackAPI(object):
-    WEBHOOK_URL = 'https://hooks.slack.com/services/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'
-    CHANNEL = '#analytics'
-
-    def __init__(self):
-        self.client = slacker.Slacker('', incoming_webhook_url=self.WEBHOOK_URL)
-
-    def to_webhook(self, url=None, filename=None, data=None):
-        url, filename, data = url or '', filename or 'untitled', data or {}
-        post_data = {
-            'username': 'analyticsbot',
-            'icon_emoji': ':hotbot:',
-            'channel': self.CHANNEL,
-            'text': 'Here are the content analytics for this week.',
-            'attachments': [{
-                'fallback': '<%s|%s>' % (url,filename),
-                'title': filename,
-                'title_link': url,
-                #'text': 'Foobar',
-                'pretext': 'Click for more details.',
-                'color': 'good',
-                'fields': [{
-                    'title': k,
-                    'value': v,
-                    'short': True
-                } for k,v in data.items()]
-            }]
-        }
-        self.client.incomingwebhook.post(post_data)
-
-
-def run(days):
-    analytics = ContentAnalytics(days=days)
-
-    rows = analytics.get_rows()
-    drive_url = GoogleDriveAPI().upload_csv(
-        analytics.to_csv_file_obj(rows),
-        doc_title=analytics.filename
-    )
-    SlackAPI().to_webhook(drive_url, analytics.filename, analytics.get_data())
-
-if __name__ == '__main__':
-    run(7)
