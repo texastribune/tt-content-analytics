@@ -222,6 +222,7 @@ class GoogleDriveAPI(object):
 
 class SlackAPI(object):
     WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+    CHANNEL = '#analytics'
 
     def __init__(self):
         self.client = slacker.Slacker('', incoming_webhook_url=self.WEBHOOK_URL)
@@ -231,7 +232,7 @@ class SlackAPI(object):
         post_data = {
             'username': 'analyticsbot',
             'icon_emoji': ':hotbot:',
-            'channel': '#analytics',
+            'channel': self.CHANNEL,
             'text': 'Here are the content analytics for this week.',
             'attachments': [{
                 'fallback': '<%s|%s>' % (url,filename),
