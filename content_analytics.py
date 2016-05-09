@@ -3,7 +3,7 @@ import csv
 import json
 from collections import Counter
 from urllib import urlopen
-from urllib2 import urlencode
+from urllib import urlencode
 import StringIO
 
 
