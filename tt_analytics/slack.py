@@ -12,7 +12,8 @@ class SlackAPI(object):
                    'T0252VA3B/B12TZ1X2P/oxfEYPOjyWFjA4vPUISHQsdF')
     channel = '#analytics'
 
-    def __init__(self, webhook_url=None, channel=None):
+    def __init__(self, type='', webhook_url=None, channel=None):
+        self.type = type
         if webhook_url:
             self.webhook_url = webhook_url
         if channel:
@@ -33,7 +34,7 @@ class SlackAPI(object):
             'username': 'analyticsbot',
             'icon_emoji': ':hotbot:',
             'channel': self.channel,
-            'text': 'Here are the content analytics for this week.',
+            'text': 'Here are the %s analytics.' % self.type,
             'attachments': [{
                 'fallback': '<%s|%s>' % (url,filename),
                 'title': filename,
