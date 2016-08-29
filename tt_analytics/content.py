@@ -143,14 +143,14 @@ class ContentAnalytics(object):
         self.data['Sections per story'] = '%.2f' % items_per_result
         return results
 
-    def analyze_tags(self):
-        return self._analyze('tags')
+    # def analyze_tags(self):
+    #     return self._analyze('tags')
 
-    def analyze_location_tags(self):
-        return self._analyze('location_tags')
+    # def analyze_location_tags(self):
+    #     return self._analyze('location_tags')
 
-    def analyze_primary_location(self):
-        return self._analyze('primary_location')
+    # def analyze_primary_location(self):
+    #     return self._analyze('primary_location')
 
     def analyze_tribpedia_entries(self):
         return self._analyze('tribpedia_entries')
