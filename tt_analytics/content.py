@@ -23,6 +23,13 @@ class TexasTribuneAPI(object):
         self.start = start
         self.end = end
 
+    def convert_dt(self, dt):
+        if dt is None:
+            return None
+        elif isinstance(dt, basestring):
+            return dt + 'T00:00'
+        return dt.strftime('%Y-%m-%dT00:00')
+
     def call(self, endpoint, params):
         """
         Low level call to the TT API.
@@ -30,8 +37,13 @@ class TexasTribuneAPI(object):
         :param endpoint: Path to the given API endpoint (without base url).
         :param params: Query params to attach to the request.
         """
-        params['start_date'] = params.get('start_date') or self.start + 'T00:00'
-        params['end_date'] = params.get('end_date') or self.end + 'T00:00'
+        start_date = params.get('start_date') or self.start
+        if start_date is not None:
+            params['start_date'] = self.convert_dt(start_date)
+        end_date = params.get('end_date') or self.end
+        if end_date is not None:
+            params['end_date'] = self.convert_dt(end_date)
+
         params['offset'] = params.get('offset') or 0
         params['limit'] = params.get('limit') or 100
         results = []
