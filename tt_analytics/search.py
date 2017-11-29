@@ -1,47 +1,34 @@
-import sys
 import os
 import json
 import csv
 import datetime
 from collections import Counter
+import requests
 
 try:
-    # Python 2 versions
-    import httplib
+    # Python 2 version
     import StringIO
 except ImportError:
-    # Python 3 versions
-    import http.client as httplib
+    # Python 3 version
     import io as StringIO
 
 
 class ScalyrAPI(object):
     api_key = None
-    base_url = None
+    base_url = 'https://www.scalyr.com'
 
-    def __init__(self, api_key=None, base_url='www.scalyr.com'):
+    def __init__(self, api_key=None):
         self.api_key = api_key or os.environ.get('SCALYR_API_TOKEN')
-        self.base_url = base_url
 
     def _call(self, endpoint, params):
         if 'token' not in params:
             params['token'] = self.api_key
-        headers = {'Content-Type': 'application/json'}
-        json_params = json.dumps(params)
-
-        conn = httplib.HTTPSConnection(self.base_url)
-        conn.request('POST', endpoint, json_params, headers)
-
-        # Retrieve and parse the response.
-        response = conn.getresponse()
-        body = response.read().decode('utf8')
-
-        try:
-            parsed_response = json.loads(body)
-        except ValueError:
-            sys.stderr.write('Scalyr server returned invalid response:\n%s' % body)
-            return
-        return parsed_response
+        url = self.base_url + endpoint
+        r = requests.post(url,
+            data=json.dumps(params),
+            headers={'content-type': 'application/json'}
+        )
+        return r.json()
 
     def query(self, filter='', start='', end='', count=10, mode='', columns='',
                     output='json', priority='high'):
@@ -98,6 +85,7 @@ class SearchAnalytics(object):
         return self._results
 
     def process(self, results):
+        print results
         searches = [unicode(match['attributes']['uriQ']).encode('utf8')
                     for match in results['matches']
                     if 'uriQ' in match['attributes']]
