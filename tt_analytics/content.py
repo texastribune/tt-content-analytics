@@ -1,10 +1,8 @@
 import datetime
 import csv
-import json
 from collections import Counter
-from urllib import urlopen
-from urllib import urlencode
 import StringIO
+import requests
 
 
 class TexasTribuneAPI(object):
@@ -15,7 +13,7 @@ class TexasTribuneAPI(object):
     :param start: ISO8601 string representing the start_date in the API call.
     :param end: ISO8601 string representing the end_date in the API call.
     """
-    api_url = 'https://www.texastribune.org/api/'
+    api_url = 'https://www.texastribune.org/api/v1/'
 
     def __init__(self, api_url=None, start=None, end=None):
         if api_url:
@@ -48,8 +46,8 @@ class TexasTribuneAPI(object):
         params['limit'] = params.get('limit') or 100
         results = []
         while True:
-            r = urlopen(self.api_url + endpoint + '?' + urlencode(params))
-            response = json.loads(r.read())
+            r = requests.get(self.api_url + endpoint, params=params)
+            response = r.json()
             results += response['results']
             if not response['next']:
                 break
@@ -146,26 +144,8 @@ class ContentAnalytics(object):
         self.data['%s per story' % attr.title().replace('_', ' ')] = '%.2f' % items_per_result
         return result
 
-    def analyze_sections(self):
-        results = self._analyze('sections')
-        # exclude front-page from total counts
-        totals = sum([r[1] for r in results[:-1] if r[0] != 'front-page'])
-        items_per_result = float(totals) / len(self.results)
-        results[-1] = (results[-1][0], '%.2f' % items_per_result)
-        self.data['Sections per story'] = '%.2f' % items_per_result
-        return results
-
-    # def analyze_tags(self):
-    #     return self._analyze('tags')
-
-    # def analyze_location_tags(self):
-    #     return self._analyze('location_tags')
-
-    # def analyze_primary_location(self):
-    #     return self._analyze('primary_location')
-
-    def analyze_tribpedia_entries(self):
-        return self._analyze('tribpedia_entries')
+    def analyze_tags(self):
+        return self._analyze('tags')
 
     def analyze_authors(self):
         return self._analyze('authors')
