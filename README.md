@@ -24,5 +24,5 @@ You can use it as-is, but you need a couple things:
 Once you have the creds, you can run the Docker like so:
 
     docker pull texastribune/tt-content-analytics
-    export SCALYR_API_KEY='<my-api-key-here>'
-    docker run --rm --env=SCALYR_API_KEY --volume=/path/to/your/credentials.json:/etc/ssl/certs/tt-googledrive-credentials.json texastribune/tt-content-analytics
+    export SCALYR_API_TOKEN='<my-api-key-here>'
+    docker run --rm --env=SCALYR_API_TOKEN --volume=/path/to/your/credentials.json:/etc/ssl/certs/tt-googledrive-credentials.json texastribune/tt-content-analytics
